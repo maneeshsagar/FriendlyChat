@@ -16,6 +16,7 @@
 package com.google.firebase.udacity.friendlychat;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -33,6 +34,7 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.firebase.ui.auth.AuthUI;
 
@@ -42,7 +44,11 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -50,7 +56,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-
+    private static final int RC_PHOTO_PICKER=2;
     public static final String ANONYMOUS = "anonymous";
     public static final int DEFAULT_MSG_LENGTH_LIMIT = 1000;
     public static final int   RC_SIGN_IN=123;
@@ -65,6 +71,8 @@ public class MainActivity extends AppCompatActivity {
     private ChildEventListener mchildEventListener;
     private FirebaseAuth mfirebaseAuth;
     private FirebaseAuth.AuthStateListener mauthStateListener;
+    private FirebaseStorage mfirebaseStorage;
+    private StorageReference mPhotoChatRefrence;
 
     private String mUsername;
 
@@ -77,9 +85,13 @@ public class MainActivity extends AppCompatActivity {
 
         mfirebaseDatabase=FirebaseDatabase.getInstance();
         mfirebaseAuth=FirebaseAuth.getInstance();
+        mfirebaseStorage=FirebaseStorage.getInstance();
 
 
         mdatabaseReference=mfirebaseDatabase.getReference().child("messages");
+        mPhotoChatRefrence=mfirebaseStorage.getReference().child("chat1_photos");
+
+
         // Initialize references to views
         mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
         mMessageListView = (ListView) findViewById(R.id.messageListView);
@@ -99,6 +111,10 @@ public class MainActivity extends AppCompatActivity {
         mPhotoPickerButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                Intent intent=new Intent(Intent.ACTION_GET_CONTENT);
+                intent.setType("image/jpeg");
+                intent.putExtra(Intent.EXTRA_LOCAL_ONLY,true);
+                startActivityForResult(Intent.createChooser(intent,"complete somrthing using"),RC_PHOTO_PICKER);
                 // TODO: Fire an intent to show an image picker
             }
         });
@@ -174,9 +190,26 @@ public class MainActivity extends AppCompatActivity {
             }else if(resultCode==RESULT_CANCELED)
             {
                 Toast.makeText(this,"Cancelled",Toast.LENGTH_SHORT).show();
+                finish();
+            }
+            else if(requestCode==RC_PHOTO_PICKER && resultCode==RESULT_OK)
+            {
+                Uri selctedImageUri=data.getData();
+                StorageReference photoref=mPhotoChatRefrence.child(selctedImageUri.getLastPathSegment());
+                photoref.putFile(selctedImageUri).addOnSuccessListener
+                        (this, new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                            @Override
+                            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                              Uri downloadUrl=taskSnapshot.getDownloadUrl();
+                              FriendlyMessage friendlyMessage=new FriendlyMessage(null,mUsername,downloadUrl.toString());
+                              mdatabaseReference.push().setValue(friendlyMessage);
+                            }
+                        });
+
+            }
             }
         }
-    }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
